@@ -1,0 +1,35 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Article {
+  id          String   @id @default(uuid())
+  url         String   @unique
+  sourceName  String
+  author      String?
+  title       String
+  description String?
+  category    String
+  publishedAt DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([publishedAt])
+}
+
+model SyncLog {
+  id          String   @id @default(uuid())
+  totalFetched Int
+  inserted    Int
+  updated     Int
+  status      String
+  createdAt   DateTime @default(now())
+}
