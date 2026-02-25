@@ -1,21 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-
-interface CategoryDistributionItem {
-  category: string
-  count: number
-}
-
-interface DailyTrendItem {
-  date: string
-  count: number
-}
-
-interface RawDailyTrendItem {
-  date: Date
-  count: bigint
-}
+import {
+  mapCategoryDistribution,
+  mapDailyTrend,
+} from "@/lib/dashboard/dashboard.helpers"
+import { CategoryDistributionItem, DailyTrendItem, RawDailyTrendItem } from "@/lib/dashboard/dashboard.types"
 
 export async function GET(req: NextRequest) {
   try {
@@ -108,15 +98,10 @@ export async function GET(req: NextRequest) {
       : null
 
     const categoryDistribution: CategoryDistributionItem[] =
-      rawCategoryDistribution.map((item: any) => ({
-        category: item.category,
-        count: item._count.category,
-      }))
+      mapCategoryDistribution(rawCategoryDistribution)
 
-    const dailyTrend: DailyTrendItem[] = rawDailyTrend.map((item: any) => ({
-      date: item.date.toISOString().split("T")[0],
-      count: Number(item.count),
-    }))
+    const dailyTrend: DailyTrendItem[] = mapDailyTrend(rawDailyTrend)
+
 
     return NextResponse.json({
       summary: {

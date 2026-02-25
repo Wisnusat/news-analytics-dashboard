@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { validateNotFound } from "@/lib/articles/articles.helpers"
 
 // Endpoint update data
 export async function PUT(
@@ -32,10 +33,12 @@ export async function PUT(
       where: { id },
     })
 
-    if (!existingArticle) {
+    const notFoundCheck = validateNotFound(existingArticle)
+
+    if (!notFoundCheck.valid) {
       return NextResponse.json(
-        { message: "Article not found" },
-        { status: 404 }
+        { message: notFoundCheck.message },
+        { status: notFoundCheck.status }
       )
     }
 
@@ -101,10 +104,12 @@ export async function DELETE(
       where: { id },
     })
 
-    if (!existingArticle) {
+    const notFoundCheck = validateNotFound(existingArticle)
+
+    if (!notFoundCheck.valid) {
       return NextResponse.json(
-        { message: "Article not found" },
-        { status: 404 }
+        { message: notFoundCheck.message },
+        { status: notFoundCheck.status }
       )
     }
 

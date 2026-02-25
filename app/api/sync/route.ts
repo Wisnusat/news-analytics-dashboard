@@ -1,6 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import {
+  filterValidArticles,
+  dedupeArticles,
+  countInsertUpdate,
+} from "@/lib/sync/sync.helpers"
 
 export async function POST() {
   const startTime = Date.now()
@@ -50,14 +55,8 @@ export async function POST() {
     )
 
     // In-memory dedupe by URL
-    const uniqueMap = new Map<string, any>()
-
-    for (const item of mergedArticles) {
-      if (!item.url || !item.title || !item.publishedAt) continue
-      uniqueMap.set(item.url, item)
-    }
-
-    const uniqueArticles = Array.from(uniqueMap.values())
+    const validArticles = filterValidArticles(mergedArticles)
+    const uniqueArticles = dedupeArticles(validArticles)
 
     // Execute all upserts inside single transaction
     const resultsUpsert = await prisma.$transaction(
@@ -70,7 +69,7 @@ export async function POST() {
             title: item.title,
             description: item.description,
             category: item.category,
-            publishedAt: new Date(item.publishedAt),
+            publishedAt: new Date(item.publishedAt || "0000-01-01"),
           },
           create: {
             url: item.url,
@@ -79,23 +78,14 @@ export async function POST() {
             title: item.title,
             description: item.description,
             category: item.category,
-            publishedAt: new Date(item.publishedAt),
+            publishedAt: new Date(item.publishedAt || "0000-01-01"),
           },
         })
       )
     )
 
     // Count inserted vs updated AFTER transaction
-    let inserted = 0
-    let updated = 0
-
-    for (const result of resultsUpsert) {
-      if (result.createdAt.getTime() === result.updatedAt.getTime()) {
-        inserted++
-      } else {
-        updated++
-      }
-    }
+    const { inserted, updated } = countInsertUpdate(resultsUpsert)
 
     const durationMs = Date.now() - startTime
 

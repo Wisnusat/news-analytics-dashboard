@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { validateCreateArticle, validateDuplicateUrl } from "@/lib/articles/articles.helpers"
 
 // Endpoint GET Data
 export async function GET(req: NextRequest) {
@@ -92,10 +93,11 @@ export async function POST(req: Request) {
     const { title, sourceName, category, publishedAt, description, url } = body
 
     // Basic validation
-    if (!title || !sourceName || !category || !publishedAt) {
+    const validation = validateCreateArticle({ title, sourceName, category, publishedAt })
+    if (!validation.valid) {
       return NextResponse.json(
-        { message: "Missing required fields" },
-        { status: 400 }
+        { message: validation.message },
+        { status: validation.status }
       )
     }
 
@@ -107,10 +109,12 @@ export async function POST(req: Request) {
         where: { url: finalUrl },
       })
 
-      if (existing) {
+      const duplicateCheck = validateDuplicateUrl(existing)
+
+      if (duplicateCheck.valid === false) {
         return NextResponse.json(
-          { message: "Article with this URL already exists" },
-          { status: 400 }
+          { message: duplicateCheck.message },
+          { status: duplicateCheck.status }
         )
       }
     } else {
