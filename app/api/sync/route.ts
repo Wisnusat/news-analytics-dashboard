@@ -1,10 +1,13 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 
 export async function POST() {
+  const startTime = Date.now()
+
   try {
-    // Ensure API key is available
     const apiKey = process.env.NEWS_API_KEY
+
     if (!apiKey) {
       return NextResponse.json(
         { message: "NEWS_API_KEY not configured" },
@@ -12,64 +15,81 @@ export async function POST() {
       )
     }
 
-    // Get last successful sync
-    const lastSync = await prisma.syncLog.findFirst({
-      where: { status: "success" },
-      orderBy: { createdAt: "desc" },
+    const categories = [
+      "technology",
+      "business",
+      "health",
+      "science",
+      "sports",
+    ]
+
+    // Fetch all categories in parallel
+    const responses = await Promise.all(
+      categories.map((category) =>
+        fetch(
+          `https://newsapi.org/v2/top-headlines?country=us&category=${category}&pageSize=50&apiKey=${apiKey}`
+        )
+      )
+    )
+
+    // Check if any request failed
+    responses.forEach((res) => {
+      if (!res.ok) {
+        throw new Error("Failed to fetch from NewsAPI")
+      }
     })
 
-    let fromDate: Date
+    const results = await Promise.all(responses.map((r) => r.json()))
 
-    // sync 30 days back for the first sync, otherwise use the last sync date
-    if (lastSync) {
-      fromDate = lastSync.createdAt
-    } else {
-      fromDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    // Merge all articles and inject category
+    const mergedArticles = results.flatMap((result, index) =>
+      (result.articles || []).map((article: any) => ({
+        ...article,
+        category: categories[index],
+      }))
+    )
+
+    // In-memory dedupe by URL
+    const uniqueMap = new Map<string, any>()
+
+    for (const item of mergedArticles) {
+      if (!item.url || !item.title || !item.publishedAt) continue
+      uniqueMap.set(item.url, item)
     }
 
-    const from = fromDate.toISOString().split("T")[0]
-    const to = new Date().toISOString().split("T")[0]
+    const uniqueArticles = Array.from(uniqueMap.values())
 
-    const url = `https://newsapi.org/v2/everything?q=technology&from=${from}&to=${to}&sortBy=publishedAt&pageSize=100&apiKey=${apiKey}`
+    // Execute all upserts inside single transaction
+    const resultsUpsert = await prisma.$transaction(
+      uniqueArticles.map((item) =>
+        prisma.article.upsert({
+          where: { url: item.url },
+          update: {
+            sourceName: item.source?.name || "Unknown",
+            author: item.author,
+            title: item.title,
+            description: item.description,
+            category: item.category,
+            publishedAt: new Date(item.publishedAt),
+          },
+          create: {
+            url: item.url,
+            sourceName: item.source?.name || "Unknown",
+            author: item.author,
+            title: item.title,
+            description: item.description,
+            category: item.category,
+            publishedAt: new Date(item.publishedAt),
+          },
+        })
+      )
+    )
 
-    const response = await fetch(url)
-
-    if (!response.ok) {
-      throw new Error("Failed to fetch from NewsAPI")
-    }
-
-    const data = await response.json()
-    const articles = data.articles || []
-
+    // Count inserted vs updated AFTER transaction
     let inserted = 0
     let updated = 0
 
-    // upsert function to insert or update article
-    // Prevent duplicate data using unique "url"
-    for (const item of articles) {
-      if (!item.url || !item.title || !item.publishedAt) continue
-
-      const result = await prisma.article.upsert({
-        where: { url: item.url },
-        update: {
-          sourceName: item.source?.name || "Unknown",
-          author: item.author,
-          title: item.title,
-          description: item.description,
-          category: "technology",
-          publishedAt: new Date(item.publishedAt),
-        },
-        create: {
-          url: item.url,
-          sourceName: item.source?.name || "Unknown",
-          author: item.author,
-          title: item.title,
-          description: item.description,
-          category: "technology",
-          publishedAt: new Date(item.publishedAt),
-        },
-      })
-
+    for (const result of resultsUpsert) {
       if (result.createdAt.getTime() === result.updatedAt.getTime()) {
         inserted++
       } else {
@@ -77,10 +97,12 @@ export async function POST() {
       }
     }
 
-    // log sync result
+    const durationMs = Date.now() - startTime
+
+    // Log sync result
     await prisma.syncLog.create({
       data: {
-        totalFetched: articles.length,
+        totalFetched: mergedArticles.length,
         inserted,
         updated,
         status: "success",
@@ -88,12 +110,13 @@ export async function POST() {
     })
 
     return NextResponse.json({
-      message: "Sync completed",
-      totalFetched: articles.length,
+      message: "Multi-category sync completed",
+      totalFetched: mergedArticles.length,
+      uniqueProcessed: uniqueArticles.length,
       inserted,
       updated,
-      from,
-      to,
+      categoriesSynced: categories.length,
+      durationMs,
     })
   } catch (error) {
     console.error("SYNC ERROR:", error)
