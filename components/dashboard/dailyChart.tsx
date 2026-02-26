@@ -5,8 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 interface DailyData {
   date: string
-  articles: number
-  views: number
+  count: number
 }
 
 interface DailyChartProps {
@@ -33,8 +32,7 @@ export function DailyChart({ data, isLoading }: DailyChartProps) {
 
   const chartData = data.map(item => ({
     date: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    articles: item.articles,
-    views: item.views
+    count: item.count
   }))
 
   return (
@@ -48,8 +46,7 @@ export function DailyChart({ data, isLoading }: DailyChartProps) {
           formatter={(value) => [value, '']}
         />
         <Legend />
-        <Bar dataKey="articles" fill="#3b82f6" name="Articles" />
-        <Bar dataKey="views" fill="#10b981" name="Views" />
+        <Bar dataKey="count" fill="#3b82f6" name="Articles" />
       </BarChart>
     </ResponsiveContainer>
   )

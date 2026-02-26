@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import {
   Table,
   TableBody,
@@ -15,20 +14,24 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Edit2, Trash2, ArrowUpDown, FolderX } from 'lucide-react'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 
-interface Article {
-  id: number
+export interface Article {
+  id: string
+  url: string
   title: string
-  source: string
+  description?: string | null
+  sourceName: string
   category: string
-  published_at: string
-  updated_at: string
+  author?: string | null
+  publishedAt: string
+  createdAt: string
+  updatedAt: string
 }
 
 interface ArticleTableProps {
   articles: Article[]
   isLoading: boolean
   onEdit: (article: Article) => void
-  onDelete: (id: number) => void
+  onDelete: (id: string) => void
   onSort: (column: string) => void
   sortBy: string
   sortOrder: string
@@ -39,7 +42,8 @@ const getCategoryColor = (category: string) => {
     Technology: 'bg-blue-100 text-blue-800',
     Business: 'bg-green-100 text-green-800',
     Health: 'bg-red-100 text-red-800',
-    Environment: 'bg-emerald-100 text-emerald-800',
+    Science: 'bg-emerald-100 text-emerald-800',
+    Sport: 'bg-orange-100 text-orange-800',
   }
   return colors[category] || 'bg-gray-100 text-gray-800'
 }
@@ -137,7 +141,7 @@ export function ArticleTable({
     )
   }
 
-  if (!articles.length) {
+  if (!articles?.length) {
     return (
       <div className="border border-gray-200 rounded-lg bg-white p-12">
         <Empty>
@@ -154,8 +158,8 @@ export function ArticleTable({
   }
 
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
-      <div className="overflow-x-auto">
+    <div className="border border-gray-200 rounded-lg overflow-hidden bg-white md:w-full w-screen">
+      <div className="overflow-x-auto max-w-full">
         <Table>
           <TableHeader>
             <TableRow className="bg-gray-50 border-b border-gray-200 hover:bg-gray-50">
@@ -206,12 +210,12 @@ export function ArticleTable({
                 <TableCell className="font-medium text-gray-900 max-w-xs">
                   <span title={article.title}>{truncate(article.title, 45)}</span>
                 </TableCell>
-                <TableCell className="text-gray-600">{article.source}</TableCell>
+                <TableCell className="text-gray-600">{article.sourceName}</TableCell>
                 <TableCell>
                   <Badge className={getCategoryColor(article.category)}>{article.category}</Badge>
                 </TableCell>
-                <TableCell className="text-gray-600 text-sm">{formatDate(article.published_at)}</TableCell>
-                <TableCell className="text-gray-600 text-sm">{formatDateTime(article.updated_at)}</TableCell>
+                <TableCell className="text-gray-600 text-sm">{formatDate(article.publishedAt)}</TableCell>
+                <TableCell className="text-gray-600 text-sm">{formatDateTime(article.updatedAt)}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <Button

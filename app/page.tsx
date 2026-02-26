@@ -1,87 +1,50 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { StatCard } from '@/components/dashboard/statCard'
 import { DateRangeFilter } from '@/components/dashboard/dateRangeFilter'
 import { CategoryChart } from '@/components/dashboard/categoryChart'
 import { DailyChart } from '@/components/dashboard/dailyChart'
 import { Heart } from 'lucide-react'
 import { MobileNav } from '@/components/common/mobileNav'
-
-interface AnalyticsSummary {
-  totalArticles: number
-  totalViews: number
-  totalLikes: number
-  avgViews: number
-}
-
-interface CategoryData {
-  name: string
-  value: number
-  views: number
-}
-
-interface DailyData {
-  date: string
-  articles: number
-  views: number
-}
+import { useDashboard } from '@/lib/hooks/useDashboard'
+import { useSync } from '@/lib/hooks/useSync'
+import { toast, Toaster } from 'sonner'
+import { useSyncStatus } from '@/lib/hooks/useSyncStatus'
 
 export default function Dashboard() {
-  const [summary, setSummary] = useState<AnalyticsSummary | null>(null)
-  const [categories, setCategories] = useState<CategoryData[]>([])
-  const [daily, setDaily] = useState<DailyData[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [dateRange, setDateRange] = useState({ start: '', end: '' })
-
-  const initializeDateRange = () => {
+  const [dateRange, setDateRange] = useState(() => {
     const end = new Date().toISOString().split('T')[0]
-    const start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split('T')[0]
-    setDateRange({ start, end })
-    fetchAnalytics(start, end)
-  }
+    const start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    return { start, end }
+  })
 
-  const fetchAnalytics = async (startDate: string, endDate: string) => {
-    setIsLoading(true)
-    try {
-      const [summaryRes, categoriesRes, dailyRes] = await Promise.all([
-        fetch(
-          `/api/analytics/summary?startDate=${startDate}T00:00:00Z&endDate=${endDate}T23:59:59Z`
-        ),
-        fetch(
-          `/api/analytics/categories?startDate=${startDate}T00:00:00Z&endDate=${endDate}T23:59:59Z`
-        ),
-        fetch(
-          `/api/analytics/daily?startDate=${startDate}T00:00:00Z&endDate=${endDate}T23:59:59Z`
-        ),
-      ])
+  const { data, loading, error, refetch } = useDashboard(
+    dateRange.start,
+    dateRange.end
+  )
 
-      if (summaryRes.ok) {
-        setSummary(await summaryRes.json())
-      }
-      if (categoriesRes.ok) {
-        setCategories(await categoriesRes.json())
-      }
-      if (dailyRes.ok) {
-        setDaily(await dailyRes.json())
-      }
-    } catch (error) {
-      console.error('[v0] Error fetching analytics:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  const { lastSyncedAt, refetch: fetchStatus } = useSyncStatus()
+
+  const { sync, loading: syncLoading } = useSync({
+    onSuccess: () => {
+      refetch() // refresh dashboard
+      fetchStatus()
+    },
+    onError: (err) => {
+      console.error('Sync failed:', err)
+      toast.error(`Sync failed: ${err}`)
+    },
+  })
 
   const handleDateRangeChange = (startDate: string, endDate: string) => {
     setDateRange({ start: startDate, end: endDate })
-    fetchAnalytics(startDate, endDate)
   }
 
-  useEffect(() => {
-    initializeDateRange()
-  }, [])
+  const formatDateTime = (iso: string | null) => {
+    if (!iso) return '-'
+    return new Date(iso).toLocaleString()
+  }
 
   return (
     <main className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100">
@@ -89,41 +52,63 @@ export default function Dashboard() {
         {/* Header */}
         <div className="flex justify-between mb-8">
           <div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">News Analytics Dashboard</h1>
-            <p className="text-gray-600">Monitor news distribution and publication trends by category and source</p>
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">
+              News Analytics Dashboard
+            </h1>
+            <p className="text-gray-600">
+              Monitor news distribution and publication trends by category and source
+            </p>
           </div>
           <MobileNav />
         </div>
 
-        {/* Date Filter */}
+        {/* Date Filter & Sync */}
         <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm mb-8">
-          <DateRangeFilter onDateRangeChange={handleDateRangeChange} lastSyncedAt="Feb 24, 2026 16:14" onSync={async () => console.log("syncing")} />
+          <DateRangeFilter
+            onDateRangeChange={handleDateRangeChange}
+            lastSyncedAt={formatDateTime(lastSyncedAt)}
+            onSync={sync}
+            isSyncing={syncLoading}
+          />
         </div>
+
+        {error && (
+          <div className="mb-6 text-red-500 text-sm">
+            Failed to load dashboard data.
+          </div>
+        )}
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <StatCard
             label="Total Articles"
-            value={summary?.totalArticles || 0}
-            isLoading={isLoading}
+            value={data?.summary.totalArticles ?? 0}
+            isLoading={loading}
             subtext="Number of synchronized articles in this period"
           />
+
           <StatCard
             label="Top Category"
-            value={summary?.totalViews || 0}
-            isLoading={isLoading}
-            subtext="Most frequently published category"
+            value={data?.summary.topCategory?.category ?? '-'}
+            isLoading={loading}
+            subtext={`${
+              data?.summary.topCategory?.count ?? 0
+            } articles in this category`}
           />
+
           <StatCard
             label="Most Active Source"
-            value={summary?.totalLikes || 0}
-            isLoading={isLoading}
-            subtext="Leading publisher by article volume"
+            value={data?.summary.topSource?.sourceName ?? '-'}
+            isLoading={loading}
+            subtext={`${
+              data?.summary.topSource?.count ?? 0
+            } articles from this source`}
           />
+
           <StatCard
-            label="Latest Published Date"
-            value={summary?.avgViews || 0}
-            isLoading={isLoading}
+            label="Latest Published"
+            value={formatDateTime(data?.summary.latestPublishedAt ?? null)}
+            isLoading={loading}
             subtext="Latest article within selected range"
           />
         </div>
@@ -131,21 +116,40 @@ export default function Dashboard() {
         {/* Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Articles by Category</h2>
-            <CategoryChart data={categories} isLoading={isLoading} />
+            <h2 className="text-xl font-bold text-gray-900 mb-4">
+              Articles by Category
+            </h2>
+            <CategoryChart
+              data={
+                data?.charts.categoryDistribution.map((item) => ({
+                  name: item.category,
+                  value: item.count,
+                })) ?? []
+              }
+              isLoading={loading}
+            />
           </div>
 
           <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Daily Publication Trends</h2>
-            <DailyChart data={daily} isLoading={isLoading} />
+            <h2 className="text-xl font-bold text-gray-900 mb-4">
+              Daily Publication Trends
+            </h2>
+            <DailyChart
+              data={data?.charts.dailyTrend ?? []}
+              isLoading={loading}
+            />
           </div>
         </div>
+
+        {/* Footer */}
         <div className="flex w-full justify-center mt-8 items-center gap-1 text-xs text-muted-foreground">
           <span>Made with</span>
           <Heart className="h-3 w-3 text-red-500 fill-red-500" />
           <span>by Wisnu S</span>
         </div>
       </div>
+
+      <Toaster position="top-right" />
     </main>
   )
 }

@@ -22,13 +22,13 @@ import {
 } from '@/components/ui/select'
 
 interface Article {
-  id?: number
+  id?: string
   title: string
-  source: string
+  sourceName: string
   category: string
-  published_at: string
-  description?: string
-  author?: string
+  publishedAt: string
+  description?: string | null
+  author?: string | null
   url?: string
 }
 
@@ -40,7 +40,7 @@ interface ArticleModalProps {
   isLoading?: boolean
 }
 
-const categories = ['Technology', 'Business', 'Health', 'Environment']
+const categories = ['technology', 'business', 'health', 'science', 'sports']
 
 export function ArticleModal({
   isOpen,
@@ -51,9 +51,9 @@ export function ArticleModal({
 }: ArticleModalProps) {
   const [formData, setFormData] = useState<Article>({
     title: '',
-    source: '',
+    sourceName: '',
     category: '',
-    published_at: '',
+    publishedAt: '',
     description: '',
     author: '',
     url: '',
@@ -66,9 +66,9 @@ export function ArticleModal({
     } else {
       setFormData({
         title: '',
-        source: '',
+        sourceName: '',
         category: '',
-        published_at: '',
+        publishedAt: '',
         description: '',
         author: '',
         url: '',
@@ -110,13 +110,13 @@ export function ArticleModal({
 
           {/* Source Name */}
           <div className="space-y-2">
-            <Label htmlFor="source" className="text-sm font-medium">
+            <Label htmlFor="sourceName" className="text-sm font-medium">
               Source Name <span className="text-red-500">*</span>
             </Label>
             <Input
-              id="source"
-              value={formData.source}
-              onChange={(e) => setFormData({ ...formData, source: e.target.value })}
+              id="sourceName"
+              value={formData.sourceName}
+              onChange={(e) => setFormData({ ...formData, sourceName: e.target.value })}
               placeholder="News source"
               required
             />
@@ -143,14 +143,14 @@ export function ArticleModal({
 
           {/* Published Date */}
           <div className="space-y-2">
-            <Label htmlFor="published_at" className="text-sm font-medium">
+            <Label htmlFor="publishedAt" className="text-sm font-medium">
               Published Date <span className="text-red-500">*</span>
             </Label>
             <Input
-              id="published_at"
+              id="publishedAt"
               type="datetime-local"
-              value={formData.published_at ? formData.published_at.slice(0, 16) : ''}
-              onChange={(e) => setFormData({ ...formData, published_at: new Date(e.target.value).toISOString() })}
+              value={formData.publishedAt ? formData.publishedAt.slice(0, 16) : ''}
+              onChange={(e) => setFormData({ ...formData, publishedAt: new Date(e.target.value).toISOString() })}
               required
             />
           </div>

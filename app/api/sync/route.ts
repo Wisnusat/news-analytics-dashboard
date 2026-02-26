@@ -72,12 +72,12 @@ export async function POST() {
             publishedAt: new Date(item.publishedAt || "0000-01-01"),
           },
           create: {
-            url: item.url,
+            url: item.url || '',
             sourceName: item.source?.name || "Unknown",
             author: item.author,
-            title: item.title,
+            title: item.title || '',
             description: item.description,
-            category: item.category,
+            category: item.category || '',
             publishedAt: new Date(item.publishedAt || "0000-01-01"),
           },
         })
