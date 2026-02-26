@@ -43,7 +43,7 @@ export async function PUT(
     }
 
     // If URL is being changed, check duplication
-    if (url && url !== existingArticle.url) {
+    if (url && url !== existingArticle?.url) {
       const duplicate = await prisma.article.findUnique({
         where: { url },
       })
@@ -64,7 +64,7 @@ export async function PUT(
         category,
         description,
         publishedAt: new Date(publishedAt),
-        url: url ?? existingArticle.url,
+        url: url ?? existingArticle?.url,
       },
     })
 
